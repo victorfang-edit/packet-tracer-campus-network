@@ -1,0 +1,38 @@
+! ===== SRV-R2 (Cisco 2911) : server site, OSPF =====
+hostname SRV-R2
+no ip domain-lookup
+service password-encryption
+enable secret LabOnly-ChangeMe
+username admin privilege 15 secret LabOnly-ChangeMe
+banner motd ^Authorized access only. Activity is monitored.^
+ip domain-name campus.lab
+crypto key generate rsa
+ip ssh version 2
+!
+interface GigabitEthernet0/0
+ description Server LAN (SRV-SW2)
+ ip address 192.168.10.193 255.255.255.224
+ no shutdown
+interface GigabitEthernet0/1
+ description WAN to HQ-R1
+ ip address 192.168.10.250 255.255.255.252
+ no shutdown
+!
+router ospf 1
+ router-id 2.2.2.2
+ network 192.168.10.192 0.0.0.31 area 0
+ network 192.168.10.248 0.0.0.3 area 0
+ passive-interface GigabitEthernet0/0
+!
+ip access-list standard VTY-ADMIN
+ permit 192.168.10.0 0.0.0.127
+ permit 192.168.10.240 0.0.0.7
+line console 0
+ login local
+ logging synchronous
+line vty 0 4
+ login local
+ transport input ssh
+ access-class VTY-ADMIN in
+end
+write memory

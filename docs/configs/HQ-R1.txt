@@ -1,0 +1,119 @@
+! ===== HQ-R1 (Cisco 2911) : inter-VLAN routing, DHCP, NAT, OSPF, ACLs =====
+! Paste in global config mode:  enable -> configure terminal
+! Passwords below are LAB-ONLY placeholders. Never reuse real passwords in a public repo.
+hostname HQ-R1
+no ip domain-lookup
+service password-encryption
+enable secret LabOnly-ChangeMe
+username admin privilege 15 secret LabOnly-ChangeMe
+banner motd ^Authorized access only. Activity is monitored.^
+ip domain-name campus.lab
+! Packet Tracer asks for the key size interactively -> answer 2048
+crypto key generate rsa
+ip ssh version 2
+!
+! ---------- DHCP (first addresses reserved for gateways/static devices) ----------
+ip dhcp excluded-address 192.168.10.1 192.168.10.10
+ip dhcp excluded-address 192.168.10.129 192.168.10.138
+ip dhcp excluded-address 192.168.10.225 192.168.10.228
+ip dhcp pool STAFF
+ network 192.168.10.0 255.255.255.128
+ default-router 192.168.10.1
+ dns-server 192.168.10.194
+ domain-name campus.lab
+ip dhcp pool STUDENTS
+ network 192.168.10.128 255.255.255.192
+ default-router 192.168.10.129
+ dns-server 192.168.10.194
+ip dhcp pool GUEST
+ network 192.168.10.224 255.255.255.240
+ default-router 192.168.10.225
+ dns-server 203.0.113.10
+!
+! ---------- Router-on-a-stick to HQ-SW1 ----------
+interface GigabitEthernet0/0
+ description Trunk to HQ-SW1
+ no shutdown
+interface GigabitEthernet0/0.10
+ description STAFF
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.128
+ ip nat inside
+interface GigabitEthernet0/0.20
+ description STUDENTS
+ encapsulation dot1Q 20
+ ip address 192.168.10.129 255.255.255.192
+ ip nat inside
+ ip access-group STUDENTS-IN in
+interface GigabitEthernet0/0.40
+ description GUEST
+ encapsulation dot1Q 40
+ ip address 192.168.10.225 255.255.255.240
+ ip nat inside
+ ip access-group GUEST-IN in
+interface GigabitEthernet0/0.99
+ description MGMT
+ encapsulation dot1Q 99
+ ip address 192.168.10.241 255.255.255.248
+interface GigabitEthernet0/0.999
+ description Native VLAN (unused, no IP)
+ encapsulation dot1Q 999 native
+!
+! ---------- WAN to server site ----------
+interface GigabitEthernet0/1
+ description WAN to SRV-R2
+ ip address 192.168.10.249 255.255.255.252
+ ip nat inside
+ no shutdown
+!
+! ---------- Internet (ISP) ----------
+interface GigabitEthernet0/2
+ description Uplink to ISP
+ ip address 198.51.100.2 255.255.255.252
+ ip nat outside
+ no shutdown
+!
+! ---------- Routing ----------
+ip route 0.0.0.0 0.0.0.0 198.51.100.1
+router ospf 1
+ router-id 1.1.1.1
+ network 192.168.10.0 0.0.0.255 area 0
+ passive-interface GigabitEthernet0/0.10
+ passive-interface GigabitEthernet0/0.20
+ passive-interface GigabitEthernet0/0.40
+ passive-interface GigabitEthernet0/0.99
+ default-information originate
+!
+! ---------- NAT: all inside hosts share the one public IP (PAT) ----------
+ip access-list standard NAT-INSIDE
+ permit 192.168.10.0 0.0.0.255
+ip nat inside source list NAT-INSIDE interface GigabitEthernet0/2 overload
+!
+! ---------- Security ACLs ----------
+ip access-list extended STUDENTS-IN
+ remark Students may not reach Staff or Management networks
+ deny ip 192.168.10.128 0.0.0.63 192.168.10.0 0.0.0.127
+ deny ip 192.168.10.128 0.0.0.63 192.168.10.240 0.0.0.7
+ permit ip any any
+ip access-list extended GUEST-IN
+ remark Guests get DHCP, can ping their gateway, and reach the internet only
+ permit udp any any eq bootps
+ permit icmp 192.168.10.224 0.0.0.15 host 192.168.10.225
+ deny ip 192.168.10.224 0.0.0.15 192.168.10.0 0.0.0.255
+ permit ip 192.168.10.224 0.0.0.15 any
+ip access-list standard VTY-ADMIN
+ remark Only Staff and Mgmt subnets may SSH to network devices
+ permit 192.168.10.0 0.0.0.127
+ permit 192.168.10.240 0.0.0.7
+!
+line console 0
+ login local
+ logging synchronous
+ exec-timeout 10 0
+line vty 0 4
+ login local
+ transport input ssh
+ access-class VTY-ADMIN in
+ exec-timeout 10 0
+end
+write memory

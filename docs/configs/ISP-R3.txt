@@ -1,0 +1,19 @@
+! ===== ISP-R3 (Cisco 2911) : simulated internet provider =====
+! Uses RFC 5737 documentation ranges (198.51.100.0/24, 203.0.113.0/24), never real public IPs.
+hostname ISP-R3
+no ip domain-lookup
+enable secret LabOnly-ChangeMe
+!
+interface GigabitEthernet0/0
+ description Customer: campus HQ-R1
+ ip address 198.51.100.1 255.255.255.252
+ no shutdown
+interface GigabitEthernet0/1
+ description "Internet" server farm
+ ip address 203.0.113.1 255.255.255.0
+ no shutdown
+!
+! No route back to 192.168.10.0/24 on purpose: private addresses are not routable
+! on the internet, so replies only work because HQ-R1 translates them (NAT).
+end
+write memory

@@ -1,0 +1,43 @@
+! ===== SRV-SW2 (Cisco 2960-24TT) : server access switch =====
+hostname SRV-SW2
+no ip domain-lookup
+service password-encryption
+enable secret LabOnly-ChangeMe
+username admin privilege 15 secret LabOnly-ChangeMe
+ip domain-name campus.lab
+crypto key generate rsa
+ip ssh version 2
+!
+vlan 30
+ name SERVERS
+vlan 999
+ name PARKED
+!
+interface GigabitEthernet0/1
+ description Uplink to SRV-R2
+ switchport mode access
+ switchport access vlan 30
+interface range FastEthernet0/1 - 2
+ description Servers
+ switchport mode access
+ switchport access vlan 30
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+interface range FastEthernet0/3 - 24 , GigabitEthernet0/2
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+!
+interface Vlan1
+ shutdown
+! ponytail: switch managed in-band on the server VLAN; move to a dedicated mgmt VLAN if the site grows
+interface Vlan30
+ ip address 192.168.10.222 255.255.255.224
+ no shutdown
+ip default-gateway 192.168.10.193
+!
+line vty 0 15
+ login local
+ transport input ssh
+end
+write memory

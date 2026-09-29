@@ -1,0 +1,77 @@
+! ===== HQ-SW1 (Cisco 2960-24TT) : VLANs, trunk, port security =====
+hostname HQ-SW1
+no ip domain-lookup
+service password-encryption
+enable secret LabOnly-ChangeMe
+username admin privilege 15 secret LabOnly-ChangeMe
+banner motd ^Authorized access only. Activity is monitored.^
+ip domain-name campus.lab
+crypto key generate rsa
+ip ssh version 2
+!
+vlan 10
+ name STAFF
+vlan 20
+ name STUDENTS
+vlan 40
+ name GUEST
+vlan 99
+ name MGMT
+vlan 999
+ name PARKED-NATIVE
+!
+interface GigabitEthernet0/1
+ description Trunk to HQ-R1
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 10,20,40,99,999
+ switchport nonegotiate
+!
+interface range FastEthernet0/1 - 8
+ description STAFF access
+ switchport mode access
+ switchport access vlan 10
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+interface range FastEthernet0/9 - 16
+ description STUDENTS access
+ switchport mode access
+ switchport access vlan 20
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+interface range FastEthernet0/17 - 20
+ description GUEST access
+ switchport mode access
+ switchport access vlan 40
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+interface range FastEthernet0/21 - 24 , GigabitEthernet0/2
+ description UNUSED - parked and shut down
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+!
+interface Vlan1
+ shutdown
+interface Vlan99
+ description Management
+ ip address 192.168.10.242 255.255.255.248
+ no shutdown
+ip default-gateway 192.168.10.241
+!
+line console 0
+ login local
+ logging synchronous
+line vty 0 15
+ login local
+ transport input ssh
+end
+write memory
